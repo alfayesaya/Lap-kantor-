@@ -1,7 +1,8 @@
 <!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Laporan Keuangan Bendahara Kantor</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#a9d6f3;--bg2:#e3f2fc;--card:#fff;--tx:#1b2733;--mu:#64748b;--ac:#0b4a8a;--ac2:#1778d6;--bd:#d5e0ea;--rd:#b3402f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e2236;--bg2:#0a1622;--card:#14283b;--tx:#e5eef6;--mu:#93a6b8;--ac:#5aa9f0;--ac2:#3b8fe0;--bd:#26405a;--rd:#e8806f}}
@@ -30,10 +31,11 @@ th,td{padding:6px;border-bottom:1px solid var(--bd);text-align:left;white-space:
 .lg{display:flex;align-items:center;gap:6px;font-size:13px;margin:3px 0}.lg u{width:10px;height:10px;border-radius:2px;display:inline-block}
 .hb{display:grid;grid-template-columns:110px 1fr 70px;gap:6px;align-items:center;font-size:12px;margin:5px 0}.hb div{background:var(--ac);height:14px;border-radius:2px}
 .pv{max-height:56px;border-radius:6px;margin-top:4px}
+#lg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,var(--bg),var(--bg2));z-index:20;padding:16px}#lg .card{width:100%;max-width:340px}#lg input{margin-bottom:8px}
 #m{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;padding:16px;z-index:9}#m img{max-width:100%;max-height:100%;border-radius:8px}
-svg{width:100%;height:auto}.hide{display:none}
+svg{width:100%;height:auto}.hide{display:none!important}
 </style></head><body><main>
-<div class="top"><button id="hm" title="Home">🏠</button><h1>Laporan Keuangan Bendahara</h1></div>
+<div class="top"><button id="hm" title="Home">🏠</button><h1>Laporan Keuangan Bendahara</h1><button id="out" class="hide">Keluar</button></div>
 
 <section id="home">
 <button class="opt" onclick="go('sum')"><i>📊</i><b>Opsi 1 · Summary Hitungan</b><span>Dashboard total, persentase, grafik per kategori, penerima, harian, bulanan dan tahunan.</span></button>
@@ -62,18 +64,20 @@ svg{width:100%;height:auto}.hide{display:none}
 <p style="margin:12px 0 0"><button class="pri" id="sv">Simpan</button></p></div>
 <div id="pall" class="card hide"><div class="g" style="margin-bottom:10px"><div><label>Cari</label><input id="q" placeholder="keterangan / penerima / kategori"></div></div><div class="sc" id="al"></div></div>
 </section>
-</main><div id="m"><img id="mi" alt="Foto"></div>
+</main><div id="lg"><div class="card"><h2>Masuk Bendahara</h2><label>Email</label><input id="em" type="email" autocomplete="username"><label>Password</label><input id="pw" type="password" autocomplete="current-password"><button class="pri" id="li" style="width:100%">Masuk</button><p id="le" class="del" style="margin:8px 0 0"></p></div></div>
+<div id="m"><img id="mi" alt="Foto"></div>
 <script>
 const $=s=>document.querySelector(s),CATS=["ATK & Perlengkapan","Operasional (listrik, air, internet)","Konsumsi & Rapat","Transport & Perjalanan Dinas","Honor & Gaji","Kegiatan & Sosial","Lain-lain"],SH=["ATK","Operasional","Konsumsi","Transport","Honor","Kegiatan","Lain-lain"],
 BLN=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"],PAL=["#0b4a8a","#1778d6","#4aa3f5","#8ec8fa","#2c5d96","#6aaedc","#a9d4f0"],
 rp=n=>"Rp "+Math.round(n).toLocaleString("id-ID"),sh=n=>n>=1e9?(n/1e9).toFixed(1)+" M":n>=1e6?(n/1e6).toFixed(1)+" jt":n>=1e3?Math.round(n/1e3)+" rb":String(Math.round(n)),
 pc=(v,t)=>t?v/t*100:0,sA=a=>a.reduce((s,r)=>s+r.a,0),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])),
-uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5),today=new Date().toISOString().slice(0,10);
-let R=[],T1="nom",T2="day",V="home";try{R=JSON.parse(localStorage.getItem("bk_r")||"[]")}catch(e){}
-const save=()=>{try{localStorage.setItem("bk_r",JSON.stringify(R))}catch(e){}},msg=t=>{$("#msg").textContent=t;setTimeout(()=>$("#msg").textContent="",3500)};
-let db;const open=()=>new Promise(r=>{try{const q=indexedDB.open("bk",1);q.onupgradeneeded=()=>q.result.createObjectStore("p");q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>r()}catch(e){r()}});
-const idb=(m,k,v)=>new Promise(r=>{if(!db)return r();try{const s=db.transaction("p",m=="get"?"readonly":"readwrite").objectStore("p"),q=m=="get"?s.get(k):m=="put"?s.put(v,k):s.delete(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r()}catch(e){r()}});
-const shrink=f=>new Promise(r=>{if(!f)return r(null);const i=new Image,u=URL.createObjectURL(f);i.onload=()=>{const s=Math.min(1,900/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);r(c.toDataURL("image/jpeg",.65))};i.onerror=()=>r(null);i.src=u});
+uid=()=>crypto.randomUUID(),today=new Date().toISOString().slice(0,10);
+let R=[],T1="nom",T2="day",V="home";
+const msg=t=>{$("#msg").textContent=t;setTimeout(()=>$("#msg").textContent="",3500)};
+const SB=supabase.createClient("https://bqfidllyzdzxgeuuhhxu.supabase.co","sb_publishable_3lDlr2ie-pegcK6N7WTSEg__-q3d-Sd");
+const rowOf=x=>({id:x.id,d:x.tanggal,c:x.kategori,k:x.keterangan,p:x.penerima||"",a:+x.jumlah,n:!!x.foto_nota,o:!!x.foto_penerima});
+async function load(){let A=[],f=0;for(;;){const{data,error}=await SB.from("transaksi").select("*").order("tanggal").range(f,f+999);if(error){alert("Gagal memuat data: "+error.message);return}A=A.concat(data);if(data.length<1000)break;f+=1000}R=A.map(rowOf);draw()}
+const shrink=f=>new Promise(r=>{if(!f)return r(null);const i=new Image,u=URL.createObjectURL(f);i.onload=()=>{const s=Math.min(1,1200/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(r,"image/jpeg",.75)};i.onerror=()=>r(null);i.src=u});
 
 // navigasi
 function go(v){V=v;["home","sum","dat"].forEach(n=>$("#"+n).classList.toggle("hide",n!=v));draw()}
@@ -85,14 +89,18 @@ $("#fm").innerHTML='<option value="">Semua</option>'+BLN.map((b,i)=>`<option val
 ["#fy","#fm","#fc"].forEach(s=>$(s).onchange=sum);$("#q").oninput=draw;
 [["#fn","#pn"],["#fo","#po"]].forEach(([f,p])=>$(f).onchange=e=>{const x=e.target.files[0];$(p).classList.toggle("hide",!x);if(x)$(p).src=URL.createObjectURL(x)});
 
-$("#sv").onclick=async()=>{const a=+$("#a").value,k=$("#k").value.trim();
- if(!a||!k||!$("#d").value){alert("Isi tanggal, keterangan, dan jumlah.");return}
- const id=uid(),[n,o]=await Promise.all([shrink($("#fn").files[0]),shrink($("#fo").files[0])]);
- if(n)await idb("put",id+"n",n);if(o)await idb("put",id+"o",o);
- R.push({id,d:$("#d").value,c:$("#c").value,k,p:$("#p").value.trim(),a,n:!!n,o:!!o});save();
- ["#k","#p","#a","#fn","#fo"].forEach(s=>$(s).value="");["#pn","#po"].forEach(s=>$(s).classList.add("hide"));msg("Tersimpan ✓")};
-window.show=async k=>{const v=await idb("get",k);if(v){$("#mi").src=v;$("#m").style.display="flex"}};$("#m").onclick=()=>$("#m").style.display="none";
-window.del=async id=>{if(!confirm("Hapus catatan ini?"))return;R=R.filter(r=>r.id!=id);save();await idb("del",id+"n");await idb("del",id+"o");draw()};
+$("#sv").onclick=async()=>{const a=+$("#a").value,k=$("#k").value.trim(),d=$("#d").value,c=$("#c").value,p=$("#p").value.trim();
+ if(!a||!k||!d){alert("Isi tanggal, keterangan, dan jumlah.");return}
+ $("#sv").disabled=true;
+ try{const id=uid(),[n,o]=await Promise.all([shrink($("#fn").files[0]),shrink($("#fo").files[0])]);
+  for(const[b,t]of[[n,"n"],[o,"o"]])if(b){const{error}=await SB.storage.from("bukti").upload(id+"/"+t+".jpg",b,{contentType:"image/jpeg"});if(error)throw error}
+  const{error}=await SB.from("transaksi").insert({id,tanggal:d,kategori:c,keterangan:k,penerima:p,jumlah:a,foto_nota:n?id+"/n.jpg":null,foto_penerima:o?id+"/o.jpg":null});if(error)throw error;
+  R.push({id,d,c,k,p,a,n:!!n,o:!!o});
+  ["#k","#p","#a","#fn","#fo"].forEach(s=>$(s).value="");["#pn","#po"].forEach(s=>$(s).classList.add("hide"));msg("Tersimpan ✓")}
+ catch(e){alert("Gagal menyimpan: "+(e.message||e))}
+ $("#sv").disabled=false};
+window.show=async k=>{const{data}=await SB.storage.from("bukti").createSignedUrl(k.slice(0,-1)+"/"+k.slice(-1)+".jpg",300);if(data){$("#mi").src=data.signedUrl;$("#m").style.display="flex"}};$("#m").onclick=()=>$("#m").style.display="none";
+window.del=async id=>{if(!confirm("Hapus catatan ini?"))return;await SB.storage.from("bukti").remove([id+"/n.jpg",id+"/o.jpg"]);const{error}=await SB.from("transaksi").delete().eq("id",id);if(error){alert(error.message);return}R=R.filter(x=>x.id!=id);draw()};
 
 // grafik
 function line(labels,vals){const W=560,H=210,p=36,mx=Math.max(...vals,1),n=vals.length,x=i=>p+(n>1?i*(W-p-12)/(n-1):0),y=v=>H-26-v/mx*(H-44);let g="";
@@ -132,9 +140,7 @@ function draw(){if(V=="sum")sum();if(V=="dat"&&!$("#pall").classList.contains("h
 
 // Excel
 const HEAD=["Tanggal","Kategori","Keterangan","Penerima","Jumlah"];
-async function dl(name,wb){const d=await claude.use("downloads");if(!d){alert("Unduhan tidak tersedia di tampilan ini.");return}
- try{await d.save({filename:name,data:XLSX.write(wb,{type:"array",bookType:"xlsx"})})}catch(e){if(e.code!="declined")alert("Gagal menyimpan: "+(e.message||e.code))}}
-const ok=()=>{if(typeof XLSX=="undefined"){alert("Library Excel belum termuat, coba lagi.");return false}return true};
+const dl=(n,wb)=>XLSX.writeFile(wb,n);
 function tpl(){if(!ok())return;const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([HEAD]),"Data");
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Petunjuk"],["Isi sheet 'Data' mulai baris 2. Satu baris = satu pengeluaran."],["Tanggal: format YYYY-MM-DD (contoh 2026-10-07) atau DD/MM/YYYY."],["Jumlah: angka tanpa 'Rp' (contoh 150000)."],["Kategori yang dikenali (selain itu masuk Lain-lain):"],...CATS.map(c=>[c]),[""],["Contoh baris:"],["2026-10-07","ATK & Perlengkapan","Beli kertas A4 5 rim","Toko Sinar Jaya",250000]]),"Petunjuk");
@@ -146,9 +152,14 @@ function expo(){if(!ok())return;const s=[...R].sort((a,b)=>a.d<b.d?-1:1),wb=XLSX
  dl("laporan-keuangan-"+today+".xlsx",wb)}
 function nd(v){if(typeof v=="number")return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);v=String(v).trim();let a=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(a)return`${a[1]}-${a[2].padStart(2,0)}-${a[3].padStart(2,0)}`;a=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);return a?`${a[3]}-${a[2].padStart(2,0)}-${a[1].padStart(2,0)}`:""}
 $("#imp").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f||!ok())return;
- try{const wb=XLSX.read(await f.arrayBuffer(),{type:"array"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});let n=0;
+ try{const wb=XLSX.read(await f.arrayBuffer(),{type:"array"}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),Q=[];
   rows.forEach(o=>{const a=typeof o.Jumlah=="number"?o.Jumlah:+String(o.Jumlah).replace(/\D/g,""),d=nd(o.Tanggal);if(!a||!d)return;
-   R.push({id:uid(),d,c:CATS.includes(o.Kategori)?o.Kategori:"Lain-lain",k:String(o.Keterangan).trim()||"-",p:String(o.Penerima).trim(),a,n:false,o:false});n++});
-  save();msg(n+" baris diimpor ✓");draw()}catch(x){alert("File Excel tidak bisa dibaca.")}};
-open().then(draw);
+   Q.push({id:uid(),tanggal:d,kategori:CATS.includes(o.Kategori)?o.Kategori:"Lain-lain",keterangan:String(o.Keterangan).trim()||"-",penerima:String(o.Penerima).trim(),jumlah:Math.round(a)})});
+  for(let i=0;i<Q.length;i+=500){const{error}=await SB.from("transaksi").insert(Q.slice(i,i+500));if(error)throw error}
+  await load();msg(Q.length+" baris diimpor ✓")}catch(x){alert("Impor gagal: "+(x.message||x))}};
+async function boot(){const{data:{session}}=await SB.auth.getSession();$("#lg").classList.toggle("hide",!!session);$("#out").classList.toggle("hide",!session);if(session)await load()}
+$("#li").onclick=async()=>{const{error}=await SB.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});if(error){$("#le").textContent="Email atau password salah.";return}$("#le").textContent="";$("#pw").value="";boot()};
+$("#pw").onkeydown=e=>{if(e.key=="Enter")$("#li").click()};
+$("#out").onclick=async()=>{await SB.auth.signOut();R=[];go("home");boot()};
+boot();
 </script></body></html>
